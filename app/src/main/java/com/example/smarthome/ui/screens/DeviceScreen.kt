@@ -1,5 +1,8 @@
 package com.example.smarthome.ui.screens
 
+import android.graphics.BitmapFactory
+import android.util.Base64
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,7 +22,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.PlayArrow
@@ -36,6 +38,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TimeInput
@@ -50,8 +53,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -72,6 +78,7 @@ fun DeviceScreen(
 ) {
     val device = mainViewModel.selected
     val schedule = mainViewModel.schedule
+    val imageFeed = mainViewModel.imageUrl
 
     val handleToggleSwitch: (String, Boolean) -> Unit = { id, status ->
         mainViewModel.sendCommand(id, status)
@@ -115,6 +122,7 @@ fun DeviceScreen(
     }
 
     val handleRefresh: () -> Unit = {
+        mainViewModel.setSession()
         mainViewModel.setDeviceList()
     }
 
@@ -123,13 +131,20 @@ fun DeviceScreen(
         .padding(16.dp)
         .verticalScroll(rememberScrollState())) {
         Header(device?.deviceCategory, handleNavigateBack, handleRefresh)
-        DeviceSwitch(device, handleToggleSwitch, handleSaveChanges)
 
-        if (device != null && device.deviceCategory?.equals("Security") == false) {
-            CountdownTimer(device, handleStartTimer, handleStopTimer)
+        device?.let {
+            DeviceSwitch(it, handleToggleSwitch, handleSaveChanges)
+
+            if (it.deviceCategory?.equals("Camera") == true) {
+                VideoFeed(base64String = imageFeed)
+            } else {
+                if (it.deviceCategory?.equals("Security") == false) {
+                    CountdownTimer(it, handleStartTimer, handleStopTimer)
+                }
+
+                ScheduledDevice(it, schedule, handleStartScheduler, handleStopScheduler)
+            }
         }
-
-        ScheduledDevice(device, schedule, handleStartScheduler, handleStopScheduler)
     }
 }
 
@@ -275,7 +290,7 @@ fun DeviceSwitch(
                     DropDownTextField(
                         label = "Category",
                         selectedText = category ?: "Outlet",
-                        options = listOf("Outlet", "Office", "Kitchen", "Living Room", "Dining", "Lighting", "Air Condition", "Security"),
+                        options = listOf("Outlet", "Office", "Kitchen", "Living Room", "Dining", "Lighting", "Air Condition", "Security", "Camera"),
                         onSelect = { category = it }
                     )
                 }
@@ -288,17 +303,11 @@ fun DeviceSwitch(
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.Start) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = name ?: "",
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.headlineMedium
-                    )
-                    IconButton(
-                        onClick = { editMode = true },
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Edit,
-                            contentDescription = "cancel edit"
+                    TextButton(onClick = { editMode = true }) {
+                        Text(
+                            text = name ?: "",
+                            textAlign = TextAlign.Start,
+                            style = MaterialTheme.typography.headlineMedium
                         )
                     }
                 }
@@ -306,7 +315,8 @@ fun DeviceSwitch(
                     Text(
                         text = category ?: "Outlet",
                         textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.labelMedium
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.padding(start = 12.dp)
                     )
                 }
             }
@@ -314,20 +324,26 @@ fun DeviceSwitch(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.End) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = if (status == true) "ON" else "OFF",
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.headlineSmall,
-                        modifier = Modifier.padding(8.dp)
-                    )
-                    Switch(
-                        checked = status ?: true,
-                        onCheckedChange = {
-                            status = it
-                            onToggleSwitch(id!!, it)
-                        }
-                    )
+                if (!device?.deviceCategory.equals("Camera")) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Start
+                    ) {
+                        Text(
+                            text = if (status == true) "ON" else "OFF",
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.headlineSmall,
+                            modifier = Modifier.padding(8.dp)
+                        )
+
+                        Switch(
+                            checked = status ?: true,
+                            onCheckedChange = {
+                                status = it
+                                onToggleSwitch(id!!, it)
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -629,5 +645,23 @@ fun DropDownTextField(
                 )
             }
         }
+    }
+}
+
+@Composable
+fun VideoFeed(base64String: String) {
+    val byteArray = Base64.decode(base64String, Base64.DEFAULT)
+    val bitmap = BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size)
+
+    Row(modifier = Modifier
+        .fillMaxSize()
+        .padding(vertical = 16.dp, horizontal = 8.dp)) {
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = "video feed",
+            modifier = Modifier
+                .fillMaxSize()
+                .rotate(180f),
+            contentScale = ContentScale.Crop)
     }
 }

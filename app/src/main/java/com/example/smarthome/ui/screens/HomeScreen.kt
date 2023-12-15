@@ -63,6 +63,7 @@ sealed class Category(val name: String, @DrawableRes val icon: Int) {
     data object Lighting : Category("Lighting", R.drawable.ic_bulb)
     data object AirCondition : Category("Air Condition", R.drawable.ic_fan)
     data object Security : Category("Security", R.drawable.ic_lock)
+    data object Camera : Category("Camera", R.drawable.baseline_camera_24)
 }
 
 fun getDeviceIcon(category: String?): Category? {
@@ -74,7 +75,8 @@ fun getDeviceIcon(category: String?): Category? {
         "Dining" to Category.Dining,
         "Lighting" to Category.Lighting,
         "Air Condition" to Category.AirCondition,
-        "Security" to Category.Security
+        "Security" to Category.Security,
+        "Camera" to Category.Camera
     )
 
     return deviceIcons[category]
@@ -99,6 +101,7 @@ fun HomeScreen(
     }
 
     val handleRefresh: () -> Unit = {
+        mainViewModel.setSession()
         mainViewModel.setDeviceList()
     }
 
@@ -326,10 +329,12 @@ fun DeviceListItem(
 
     ElevatedCard(
         modifier = Modifier
-            .fillMaxWidth()
+            .fillMaxSize()
             .padding(8.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
+        colors = CardDefaults.cardColors(
+            containerColor = if (device.deviceCategory.equals("Camera") || device.deviceCategory.equals("Security")) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.background
+        ),
         onClick = { onDeviceSelected() }
     ) {
         Row(modifier = Modifier
@@ -352,14 +357,16 @@ fun DeviceListItem(
                 }
             }
             Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
-                Switch(
-                    modifier = Modifier.scale(0.8f),
-                    checked = status,
-                    onCheckedChange = {
-                        status = it
-                        onToggleSwitch(device.deviceId!!, it)
-                    }
-                )
+                if (!device.deviceCategory.equals("Camera")) {
+                    Switch(
+                        modifier = Modifier.scale(0.8f),
+                        checked = status,
+                        onCheckedChange = {
+                            status = it
+                            onToggleSwitch(device.deviceId!!, it)
+                        }
+                    )
+                }
             }
         }
 
