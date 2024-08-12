@@ -12,7 +12,6 @@ import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 
 class WebSocketBuilder : ApiBuilder() {
-    private val BASE_URL = "wss://automation.nat911.com"
 
     val socket: HttpClient = HttpClient(CIO) {
         install(Logging) {
@@ -24,7 +23,7 @@ class WebSocketBuilder : ApiBuilder() {
         }
 
         defaultRequest {
-            url(BASE_URL)
+            url("wss://home.automos.net")
             contentType(ContentType.Application.Json)
         }
         install(WebSockets)

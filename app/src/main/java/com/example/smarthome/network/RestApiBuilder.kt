@@ -10,7 +10,6 @@ import io.ktor.client.plugins.logging.Logging
 import io.ktor.serialization.kotlinx.json.json
 
 class RestApiBuilder : ApiBuilder() {
-    private val BASE_URL = "https://automation.nat911.com"
 
     val api: HttpClient = HttpClient(Android) {
         install(Logging) {
@@ -29,7 +28,7 @@ class RestApiBuilder : ApiBuilder() {
         }
 
         defaultRequest {
-            url(BASE_URL)
+            url("https://home.automos.net")
         }
     }
 }

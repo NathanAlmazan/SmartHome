@@ -2,6 +2,7 @@ package com.example.smarthome.ui.screens
 
 import android.graphics.BitmapFactory
 import android.util.Base64
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -15,18 +16,23 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedButton
@@ -53,6 +59,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Size
@@ -66,9 +73,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
 import com.example.smarthome.R
+import com.example.smarthome.dto.DeviceLogs
 import com.example.smarthome.dto.DeviceModel
 import com.example.smarthome.dto.Schedules
 import com.example.smarthome.ui.viewmodels.MainViewModel
+import java.time.Duration
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 
 @Composable
@@ -79,6 +91,8 @@ fun DeviceScreen(
     val device = mainViewModel.selected
     val schedule = mainViewModel.schedule
     val imageFeed = mainViewModel.imageUrl
+    val deviceLogs = mainViewModel.deviceLogs
+    val costPerWatt = mainViewModel.settings.costPerWatt
 
     val handleToggleSwitch: (String, Boolean) -> Unit = { id, status ->
         mainViewModel.sendCommand(id, status)
@@ -143,6 +157,20 @@ fun DeviceScreen(
                 }
 
                 ScheduledDevice(it, schedule, handleStartScheduler, handleStopScheduler)
+
+                Row {
+                    Text(
+                        text = "History",
+                        style = MaterialTheme.typography.titleLarge,
+                        textAlign = TextAlign.Start
+                    )
+                }
+
+                LazyRow(modifier = Modifier.fillMaxSize()) {
+                    items(deviceLogs) { log ->
+                        DeviceLogCard(log, costPerWatt)
+                    }
+                }
             }
         }
     }
@@ -163,7 +191,7 @@ fun Header(
             Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
                 IconButton(onClick = { onNavigateBack() }) {
                     Icon(
-                        imageVector = Icons.Filled.ArrowBack,
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "arrow back",
                         modifier = Modifier
                             .width(30.dp)
@@ -663,5 +691,68 @@ fun VideoFeed(base64String: String) {
                 .fillMaxSize()
                 .rotate(180f),
             contentScale = ContentScale.Crop)
+    }
+}
+
+@Composable
+fun DeviceLogCard(log: DeviceLogs, costPerWatt: Double) {
+    val opened = LocalDateTime.parse(log.opened, DateTimeFormatter.ISO_DATE_TIME)
+    val closed = LocalDateTime.parse(log.closed, DateTimeFormatter.ISO_DATE_TIME)
+    val formatter = DateTimeFormatter.ofPattern("MMM d, h a", Locale.ENGLISH)
+    val difference = Duration.between(opened, closed).toMinutes()
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(MaterialTheme.colorScheme.onPrimary),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+        modifier = Modifier
+            .height(200.dp)
+            .width(150.dp)
+            .padding(12.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(8.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(modifier = Modifier
+                .height(40.dp)
+                .width(40.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.tertiaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_power_meter),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onTertiaryContainer
+                )
+            }
+            Text(
+                text = "${String.format(Locale.US, "%.2f", log.consumed).toDouble()}kWh",
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+            Text(
+                text = "₱${String.format(Locale.US, "%.2f", log.consumed * costPerWatt).toDouble()}",
+                style = MaterialTheme.typography.bodySmall,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = opened.format(formatter),
+                style = MaterialTheme.typography.labelMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+            Text(
+                text = "Used ${log.deviceName} for $difference minutes",
+                style = MaterialTheme.typography.labelSmall,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
     }
 }

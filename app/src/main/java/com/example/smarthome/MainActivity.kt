@@ -49,6 +49,12 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                LaunchedEffect(mainViewModel.disconnected) {
+                    if (mainViewModel.disconnected) showNotification(
+                        "Outlet Disconnected!","The outlet has been disconnected. Please check the outlet power."
+                    )
+                }
+
                 AppScaffold(mainViewModel)
             }
         }

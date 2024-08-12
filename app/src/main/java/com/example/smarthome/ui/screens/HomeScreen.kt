@@ -97,6 +97,7 @@ fun HomeScreen(
 
     val handleDeviceSelected: (DeviceModel) -> Unit = { device ->
         mainViewModel.setSelectedDevice(device)
+        mainViewModel.setDeviceLogs(device)
         onNavigate(Screen.Device)
     }
 

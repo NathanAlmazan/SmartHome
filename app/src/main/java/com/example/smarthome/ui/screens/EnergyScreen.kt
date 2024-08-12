@@ -1,31 +1,24 @@
 package com.example.smarthome.ui.screens
 
-import android.os.Build
-import androidx.annotation.RequiresApi
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -46,34 +39,61 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.constraintlayout.compose.ConstraintLayout
+import co.yml.charts.axis.AxisData
+import co.yml.charts.common.model.Point
+import co.yml.charts.ui.linechart.LineChart
+import co.yml.charts.ui.linechart.model.GridLines
+import co.yml.charts.ui.linechart.model.IntersectionPoint
+import co.yml.charts.ui.linechart.model.Line
+import co.yml.charts.ui.linechart.model.LineChartData
+import co.yml.charts.ui.linechart.model.LinePlotData
+import co.yml.charts.ui.linechart.model.LineStyle
+import co.yml.charts.ui.linechart.model.LineType
+import co.yml.charts.ui.linechart.model.SelectionHighlightPoint
+import co.yml.charts.ui.linechart.model.SelectionHighlightPopUp
+import co.yml.charts.ui.linechart.model.ShadowUnderLine
 import com.example.smarthome.R
+import com.example.smarthome.dto.History
 import com.example.smarthome.dto.Report
-import com.example.smarthome.dto.Summary
 import com.example.smarthome.dto.UserSettings
 import com.example.smarthome.ui.viewmodels.MainViewModel
-import java.time.Month
 import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Date
 import java.util.Locale
 
-@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun EnergyScreen(
     mainViewModel: MainViewModel,
     onNavigate: (Screen) -> Unit
 ) {
+    val frequency = rememberSaveable { mutableStateOf("Daily") }
     val report = mainViewModel.report
     val timestamp = mainViewModel.timestamp
-    val history = mainViewModel.history
+    val history = mainViewModel.graph
     val costPerWatt = mainViewModel.settings.costPerWatt
+
+    val handleSelectFrequency: (String) -> Unit = { selected ->
+        frequency.value = selected
+
+        when (selected) {
+            "Hourly" -> mainViewModel.setGraphData("hour")
+            "Daily" -> mainViewModel.setGraphData("day")
+            "Weekly" -> mainViewModel.setGraphData("week")
+            "Monthly" -> mainViewModel.setGraphData("month")
+        }
+    }
 
     val handleUpdateSettings: (UserSettings) -> Unit = { settings ->
         mainViewModel.updateUserSettings(settings)
@@ -83,14 +103,16 @@ fun EnergyScreen(
         mainViewModel.setEnergyReport(reportDate)
     }
 
-    Column(modifier = Modifier
-        .fillMaxSize()
-        .padding(16.dp)
-        .verticalScroll(rememberScrollState())) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
         Row(horizontalArrangement = Arrangement.Start, modifier = Modifier.fillMaxWidth()) {
             IconButton(onClick = { onNavigate(Screen.Home) }) {
                 Icon(
-                    imageVector = Icons.Filled.ArrowBack,
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "arrow back",
                     modifier = Modifier
                         .width(30.dp)
@@ -104,17 +126,17 @@ fun EnergyScreen(
                 mainViewModel.settings,
                 timestamp,
                 handleUpdateSettings,
-                handleChangeReportDate)
+                handleChangeReportDate
+            )
 
             EnergyDetails(it)
         }
 
-        EnergyHistory(history, costPerWatt)
+        EnergyHistory(frequency.value, history, costPerWatt, handleSelectFrequency)
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun EnergyConsumption(
     report: Report,
@@ -130,12 +152,15 @@ fun EnergyConsumption(
     val currentDate = current.format(DateTimeFormatter.ofPattern("dd MMM, yyyy"))
     val dayName = current.dayOfWeek.getDisplayName(TextStyle.SHORT_STANDALONE, Locale.ENGLISH)
 
-    ConstraintLayout(modifier = Modifier
-        .fillMaxWidth()
-        .height(360.dp)) {
+    ConstraintLayout(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(360.dp)
+    ) {
         val (indicator, details) = createRefs()
 
         CircularProgressIndicator(
+            progress = { 100f },
             modifier = Modifier
                 .height(320.dp)
                 .width(320.dp)
@@ -146,9 +171,8 @@ fun EnergyConsumption(
                     bottom.linkTo(parent.bottom, margin = 16.dp)
                 },
             color = MaterialTheme.colorScheme.secondary,
+            strokeWidth = 12.dp,
             trackColor = MaterialTheme.colorScheme.surfaceVariant,
-            progress = 100f,
-            strokeWidth = 12.dp
         )
 
         Box(modifier = Modifier
@@ -157,7 +181,7 @@ fun EnergyConsumption(
                 start.linkTo(parent.start, margin = 16.dp)
                 end.linkTo(parent.end, margin = 16.dp)
                 bottom.linkTo(parent.bottom, margin = 16.dp)
-        }) {
+            }) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 TextButton(onClick = { dialog = true }) {
                     Text(
@@ -196,14 +220,14 @@ fun EnergyConsumption(
                 }
 
                 Text(
-                    text = "${String.format("%.2f", report.consumption).toDouble()}kWh",
+                    text = "${String.format(Locale.US, "%.2f", report.consumption).toDouble()}kWh",
                     style = MaterialTheme.typography.displayLarge,
                     textAlign = TextAlign.Center
                 )
 
                 TextButton(onClick = { settings = true }) {
                     Text(
-                        text = "₱${String.format("%.2f", report.cost).toDouble()}",
+                        text = "₱${String.format(Locale.US, "%.2f", report.cost).toDouble()}",
                         style = MaterialTheme.typography.headlineMedium,
                         textAlign = TextAlign.Center
                     )
@@ -226,9 +250,11 @@ fun EnergyConsumption(
 fun EnergyDetails(report: Report) {
     Column(modifier = Modifier.fillMaxWidth()) {
         // The section that holds the other power data
-        Row(modifier = Modifier
-            .fillMaxWidth()
-            .padding(8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp), horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
 
             Column(
                 modifier = Modifier
@@ -236,11 +262,12 @@ fun EnergyDetails(report: Report) {
                     .width(72.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(modifier = Modifier
-                    .height(50.dp)
-                    .width(50.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
+                Box(
+                    modifier = Modifier
+                        .height(50.dp)
+                        .width(50.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -250,7 +277,7 @@ fun EnergyDetails(report: Report) {
                     )
                 }
                 Text(
-                    text = "${String.format("%.2f", report.power).toDouble()}W",
+                    text = "${String.format(Locale.US, "%.2f", report.power).toDouble()}W",
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(top = 8.dp)
@@ -268,11 +295,12 @@ fun EnergyDetails(report: Report) {
                     .width(72.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(modifier = Modifier
-                    .height(50.dp)
-                    .width(50.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
+                Box(
+                    modifier = Modifier
+                        .height(50.dp)
+                        .width(50.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -282,7 +310,7 @@ fun EnergyDetails(report: Report) {
                     )
                 }
                 Text(
-                    text = "${String.format("%.2f", report.current).toDouble()}A",
+                    text = "${String.format(Locale.US, "%.2f", report.current).toDouble()}A",
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(top = 8.dp)
@@ -300,11 +328,12 @@ fun EnergyDetails(report: Report) {
                     .width(72.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(modifier = Modifier
-                    .height(50.dp)
-                    .width(50.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
+                Box(
+                    modifier = Modifier
+                        .height(50.dp)
+                        .width(50.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -314,7 +343,7 @@ fun EnergyDetails(report: Report) {
                     )
                 }
                 Text(
-                    text = "${String.format("%.2f", report.voltage).toDouble()}V",
+                    text = "${String.format(Locale.US, "%.2f", report.voltage).toDouble()}V",
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(top = 8.dp)
@@ -327,9 +356,11 @@ fun EnergyDetails(report: Report) {
             }
         }
 
-        Row(modifier = Modifier
-            .fillMaxWidth()
-            .padding(8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp), horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
 
             // Card for humidity
             Column(
@@ -338,11 +369,12 @@ fun EnergyDetails(report: Report) {
                     .width(72.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(modifier = Modifier
-                    .height(50.dp)
-                    .width(50.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
+                Box(
+                    modifier = Modifier
+                        .height(50.dp)
+                        .width(50.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -352,7 +384,7 @@ fun EnergyDetails(report: Report) {
                     )
                 }
                 Text(
-                    text = "${String.format("%.2f", report.energy).toDouble()}kWh",
+                    text = "${String.format(Locale.US, "%.2f", report.energy).toDouble()}kWh",
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(top = 8.dp)
@@ -370,11 +402,12 @@ fun EnergyDetails(report: Report) {
                     .width(72.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(modifier = Modifier
-                    .height(50.dp)
-                    .width(50.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
+                Box(
+                    modifier = Modifier
+                        .height(50.dp)
+                        .width(50.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -384,7 +417,7 @@ fun EnergyDetails(report: Report) {
                     )
                 }
                 Text(
-                    text = "${String.format("%.2f", report.frequency).toDouble()}Hz",
+                    text = "${String.format(Locale.US, "%.2f", report.frequency).toDouble()}Hz",
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(top = 8.dp)
@@ -402,11 +435,12 @@ fun EnergyDetails(report: Report) {
                     .width(72.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(modifier = Modifier
-                    .height(50.dp)
-                    .width(50.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
+                Box(
+                    modifier = Modifier
+                        .height(50.dp)
+                        .width(50.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -416,7 +450,7 @@ fun EnergyDetails(report: Report) {
                     )
                 }
                 Text(
-                    text = "${String.format("%.2f", report.consumption).toDouble()}",
+                    text = "${String.format(Locale.US, "%.2f", report.consumption).toDouble()}",
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(top = 8.dp)
@@ -431,78 +465,115 @@ fun EnergyDetails(report: Report) {
     }
 }
 
-@RequiresApi(Build.VERSION_CODES.O)
+fun formatIsoDate(isoDateString: String, selected: String): String {
+    // Parse the ISO 8601 date string to a ZonedDateTime object
+    val zonedDateTime = ZonedDateTime.parse(isoDateString, DateTimeFormatter.ISO_DATE_TIME)
+
+    // Define the desired output format
+    var formatter = DateTimeFormatter.ofPattern("MMM d, h a", Locale.ENGLISH)
+
+    if (selected == "Daily" || selected == "Weekly") {
+        formatter = DateTimeFormatter.ofPattern("MMM d", Locale.ENGLISH)
+    } else if (selected == "Monthly") {
+        formatter = DateTimeFormatter.ofPattern("MMM", Locale.ENGLISH)
+    }
+
+    // Format the ZonedDateTime object to the desired format
+    return zonedDateTime.format(formatter)
+}
+
 @Composable
-fun EnergyHistory(history: List<Summary>, costPerWatt: Double) {
-    Column(modifier = Modifier
-        .fillMaxWidth()
-        .padding(top = 32.dp)) {
+fun EnergyHistory(
+    selected: String,
+    history: List<History>,
+    costPerWatt: Double,
+    onSelect: (String) -> Unit
+) {
+    val labels = history.map { data -> formatIsoDate(data.stamp, selected) }
+    val values: Float = history.maxOfOrNull { data -> data.energy / 100f } ?: 50.0f
+    val constant: Int = (values / 5.0f).toInt()
+    val dataPoints = history.mapIndexed { index, data -> Point(index.toFloat(), data.energy / 100f) }
+
+    val xAxisData = AxisData.Builder()
+        .axisStepSize(100.dp)
+        .backgroundColor(Color.Transparent)
+        .steps(history.size - 1)
+        .labelData { i -> labels[i] }
+        .labelAndAxisLinePadding(15.dp)
+        .axisLineColor(MaterialTheme.colorScheme.secondary)
+        .axisLabelColor(MaterialTheme.colorScheme.secondary)
+        .axisLabelFontSize(12.sp)
+        .build()
+
+    val yAxisData = AxisData.Builder()
+        .steps(5)
+        .backgroundColor(Color.Transparent)
+        .labelAndAxisLinePadding(20.dp)
+        .labelData { i -> "${(i * constant)}kWh" }
+        .axisLineColor(MaterialTheme.colorScheme.secondary)
+        .axisLabelColor(MaterialTheme.colorScheme.secondary)
+        .build()
+
+    val lineChartData = LineChartData(
+        linePlotData = LinePlotData(
+            lines = listOf(
+                Line(
+                    dataPoints = dataPoints,
+                    LineStyle(
+                        color = MaterialTheme.colorScheme.secondary,
+                        lineType = LineType.SmoothCurve(isDotted = false)
+                    ),
+                    IntersectionPoint(
+                        color = MaterialTheme.colorScheme.secondary
+                    ),
+                    SelectionHighlightPoint(
+                        color = MaterialTheme.colorScheme.secondary
+                    ),
+                    ShadowUnderLine(
+                        alpha = 0.5f,
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.inversePrimary,
+                                Color.Transparent
+                            )
+                        )
+                    ),
+                    SelectionHighlightPopUp()
+                )
+            )
+        ),
+        backgroundColor = MaterialTheme.colorScheme.surface,
+        xAxisData = xAxisData,
+        yAxisData = yAxisData,
+        gridLines = GridLines(color = MaterialTheme.colorScheme.outlineVariant)
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 32.dp)
+    ) {
         Row {
             Text(
                 text = "History",
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleLarge,
                 textAlign = TextAlign.Start
             )
         }
 
-        LazyRow(modifier = Modifier.fillMaxSize()) {
-            items(history) { data ->
-                EnergyHistoryCard(data, costPerWatt)
-            }
-        }
-    }
-}
+        DropDownTextField(
+            label = "Frequency",
+            selectedText = selected,
+            options = listOf("Hourly", "Daily", "Weekly", "Monthly"),
+            onSelect = { onSelect(it) }
+        )
 
-@RequiresApi(Build.VERSION_CODES.O)
-@Composable
-fun EnergyHistoryCard(history: Summary, costPerWatt: Double) {
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(MaterialTheme.colorScheme.onPrimary),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
-        modifier = Modifier
-            .fillMaxHeight()
-            .width(120.dp)
-            .padding(12.dp)
-    ) {
-        Column(
+        LineChart(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(8.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Box(modifier = Modifier
-                .height(40.dp)
-                .width(40.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.tertiaryContainer),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_power_meter),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onTertiaryContainer
-                )
-            }
-            Text(
-                text = "${String.format("%.2f", history.consumption).toDouble()}kWh",
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-            Text(
-                text = "₱${String.format("%.2f", history.consumption * costPerWatt).toDouble()}",
-                style = MaterialTheme.typography.bodySmall,
-                textAlign = TextAlign.Center
-            )
-            Text(
-                text = Month.of(history.month).name,
-                style = MaterialTheme.typography.labelMedium,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(vertical = 8.dp)
-            )
-        }
+                .fillMaxWidth()
+                .height(300.dp),
+            lineChartData = lineChartData
+        )
     }
 }
 
@@ -543,30 +614,48 @@ fun SettingsDialog(
                     )
                 }
 
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                   Column(modifier = Modifier.weight(1f)) {
-                       Text(
-                           text = "${report.consumption}kWh x ",
-                           style = MaterialTheme.typography.bodyMedium,
-                           textAlign = TextAlign.Center,
-                           modifier = Modifier.padding(top = 8.dp)
-                       )
-                   }
-                   Column(modifier = Modifier.weight(2f)) {
-                       TextField(
-                           label = { Text(text = "Cost per kWh", style = MaterialTheme.typography.labelLarge) },
-                           value = cost.toString(),
-                           onValueChange = { cost = it.toDouble() },
-                           keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                           modifier = Modifier.fillMaxWidth(),
-                           leadingIcon = { Text(text = "₱") }
-                       )
-                   }
-               }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "${report.consumption}kWh x ",
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+                    Column(modifier = Modifier.weight(2f)) {
+                        TextField(
+                            label = {
+                                Text(
+                                    text = "Cost per kWh",
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                            },
+                            value = cost.toString(),
+                            onValueChange = { cost = it.toDouble() },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth(),
+                            leadingIcon = { Text(text = "₱") }
+                        )
+                    }
+                }
 
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                ) {
                     TextField(
-                        label = { Text(text = "Threshold", style = MaterialTheme.typography.labelLarge) },
+                        label = {
+                            Text(
+                                text = "Threshold",
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                        },
                         value = threshold.toString(),
                         onValueChange = { threshold = it.toDouble() },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -575,7 +664,11 @@ fun SettingsDialog(
                     )
                 }
 
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                ) {
                     DropDownTextField(
                         label = "Threshold Schedule",
                         selectedText = schedule,
@@ -584,10 +677,12 @@ fun SettingsDialog(
                     )
                 }
 
-                Row(modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 12.dp),
-                    horizontalArrangement = Arrangement.End) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
                     Button(
                         onClick = {
                             onSubmit(UserSettings(cost, threshold, schedule))

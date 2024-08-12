@@ -6,14 +6,10 @@ sealed class Result<out R> {
 }
 
 class FormattedException(text: String) : IllegalStateException(text) {
-    var formattedErrorMessage: String
-
-    init {
-        formattedErrorMessage = try {
-            val split = text.split("Text: \"")
-            split[1].replace("\"", "")
-        } catch (ex: Exception) {
-            text
-        }
+    var formattedErrorMessage: String = try {
+        val split = text.split("Text: \"")
+        split[1].replace("\"", "")
+    } catch (ex: Exception) {
+        text
     }
 }

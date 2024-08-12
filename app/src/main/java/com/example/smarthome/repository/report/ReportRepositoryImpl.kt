@@ -1,5 +1,7 @@
 package com.example.smarthome.repository.report
 
+import com.example.smarthome.dto.DeviceLogs
+import com.example.smarthome.dto.History
 import com.example.smarthome.dto.Report
 import com.example.smarthome.dto.Summary
 import com.example.smarthome.dto.UserSettings
@@ -15,6 +17,17 @@ import io.ktor.http.contentType
 import java.util.Date
 
 class ReportRepositoryImpl(private val client: RestApiBuilder): ReportRepository {
+    override suspend fun getHistory(scope: String): Result<List<History>> {
+        return try {
+            Result.Success(client.api.get(ReportRepository.Endpoints.HISTORY.url + "/" + scope).body())
+        } catch (exception: FormattedException) {
+            Result.Error(exception.formattedErrorMessage)
+        } catch (exception: Exception) {
+            Result.Error("Server or network error")
+        }
+    }
+
+
     override suspend fun getEnergyReport(datetime: Date): Result<Report> {
         return try {
             Result.Success(client.api.get(ReportRepository.Endpoints.ENERGY.url + "/" + datetime.time).body())
@@ -38,6 +51,16 @@ class ReportRepositoryImpl(private val client: RestApiBuilder): ReportRepository
     override suspend fun getCostPerWatt(): Result<UserSettings> {
         return try {
             Result.Success(client.api.get(ReportRepository.Endpoints.SETTINGS.url).body())
+        } catch (exception: FormattedException) {
+            Result.Error(exception.formattedErrorMessage)
+        } catch (exception: Exception) {
+            Result.Error("Server or network error")
+        }
+    }
+
+    override suspend fun getDeviceConsumed(deviceId: String): Result<List<DeviceLogs>> {
+        return try {
+            Result.Success(client.api.get(ReportRepository.Endpoints.LOGS.url + "/" + deviceId).body())
         } catch (exception: FormattedException) {
             Result.Error(exception.formattedErrorMessage)
         } catch (exception: Exception) {

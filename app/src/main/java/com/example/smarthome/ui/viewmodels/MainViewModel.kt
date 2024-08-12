@@ -12,7 +12,9 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.smarthome.dto.AuthModel
 import com.example.smarthome.dto.CommandModel
+import com.example.smarthome.dto.DeviceLogs
 import com.example.smarthome.dto.DeviceModel
+import com.example.smarthome.dto.History
 import com.example.smarthome.dto.Report
 import com.example.smarthome.dto.Schedules
 import com.example.smarthome.dto.Summary
@@ -37,8 +39,11 @@ class MainViewModel(
 ): ViewModel() {
     private var _token by mutableStateOf<String?>(null)
     private var _error by mutableStateOf<String?>(null)
+    private var _disconnected by mutableStateOf(false)
     private var _devices = mutableStateListOf<DeviceModel>()
     private var _selected by mutableStateOf<DeviceModel?>(null)
+    private var _graph = mutableStateListOf<History>()
+    private var _deviceLogs = mutableStateListOf<DeviceLogs>()
     private var _report by mutableStateOf<Report?>(null)
     private var _schedule by mutableStateOf<Schedules?>(null)
     private var _timestamp by mutableStateOf(Date(System.currentTimeMillis() + (8 * (60 * 60 * 1000))))
@@ -49,12 +54,15 @@ class MainViewModel(
     val error: String? get() = _error
     val selected: DeviceModel? get() = _selected
     val devices: List<DeviceModel> get() = _devices
+    val graph: List<History> get() = _graph
+    val deviceLogs: List<DeviceLogs> get() = _deviceLogs
     val report: Report? get() = _report
     val schedule: Schedules? get() = _schedule
     val timestamp: Date get() = _timestamp
     val history: List<Summary> get() = _history
     val imageUrl: String get() = _imageUrl
     val settings: UserSettings get() = _settings
+    val disconnected: Boolean get() = _disconnected
 
     init {
         setSession() // Initialize Session
@@ -62,6 +70,7 @@ class MainViewModel(
         setEnergyReport(_timestamp) // Fetch Energy Report
         setUserSettings() // Fetch user settings
         setEnergyHistory() // Fetch Energy History
+        setGraphData("day") // Fetch Graph Data
     }
 
     fun setSession() {
@@ -79,6 +88,7 @@ class MainViewModel(
                                     when (it.action) {
                                         "REPORT" -> setEnergyReport(_timestamp)
                                         "VIDEO" -> _imageUrl = it.recipient
+                                        "DISCONNECTED" -> _disconnected = true
                                         else -> setDeviceList()
                                     }
                                 }.launchIn(viewModelScope)
@@ -115,6 +125,8 @@ class MainViewModel(
                         }
                     }
                     Log.d("Device Count", response.data.size.toString())
+
+                    _disconnected = false
                 }
                 is Result.Error -> {
                     _error = response.exception
@@ -162,6 +174,25 @@ class MainViewModel(
 
         device?.let {
             it.deviceId?.let { id -> setDeviceSchedule(id) }
+        }
+    }
+
+    fun setDeviceLogs(device: DeviceModel?) {
+        if (device?.deviceId == null) return
+
+        viewModelScope.launch {
+            when(val response = reportRepository.getDeviceConsumed(device.deviceId)) {
+                is Result.Success<List<DeviceLogs>> -> {
+                    _deviceLogs.clear()
+                    _deviceLogs.addAll(response.data)
+
+                    Log.d("Device Logs", response.data.toString())
+                }
+                is Result.Error -> {
+                    _error = response.exception
+                    Log.d("HTTP Exception", response.exception)
+                }
+            }
         }
     }
 
@@ -217,6 +248,22 @@ class MainViewModel(
                 is Result.Success<Report> -> {
                     _report = response.data
                     Log.d("Energy Report", response.data.toString())
+                }
+                is Result.Error -> {
+                    _error = response.exception
+                    Log.d("HTTP Exception", response.exception)
+                }
+            }
+        }
+    }
+
+    fun setGraphData(scope: String) {
+        viewModelScope.launch {
+            when(val response = reportRepository.getHistory(scope)) {
+                is Result.Success<List<History>> -> {
+                    _graph.clear()
+                    _graph.addAll(response.data)
+                    Log.d("Graph Data", response.data.toString())
                 }
                 is Result.Error -> {
                     _error = response.exception
