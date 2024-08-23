@@ -1,8 +1,6 @@
 package com.example.smarthome.ui.screens
 
-import android.os.Build
 import androidx.annotation.DrawableRes
-import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,12 +18,11 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -82,7 +79,6 @@ fun getDeviceIcon(category: String?): Category? {
     return deviceIcons[category]
 }
 
-@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun HomeScreen(
     mainViewModel: MainViewModel,
@@ -129,7 +125,6 @@ fun GreetingCard() {
     }
 }
 
-@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun EnergyCard(
     report: Report?,
@@ -186,7 +181,7 @@ fun EnergyCard(
                                 color = MaterialTheme.colorScheme.secondary
                             )
                             Icon(
-                                imageVector = Icons.Filled.KeyboardArrowRight,
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                                 contentDescription = "energy details",
                                 tint = MaterialTheme.colorScheme.secondary
                             )
@@ -219,7 +214,7 @@ fun EnergyCard(
                         .padding(4.dp)) {
                         if (report != null) {
                             Text(
-                                text = "${String.format("%.2f", report.consumption).toDouble()}kWh",
+                                text = "${String.format(Locale.US, "%.2f", report.consumption).toDouble()}kWh",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
@@ -254,7 +249,7 @@ fun EnergyCard(
                         .padding(4.dp)) {
                         if (report != null) {
                             Text(
-                                text = "₱${String.format("%.2f", report.cost).toDouble()}",
+                                text = "₱${String.format(Locale.US, "%.2f", report.cost).toDouble()}",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
@@ -314,7 +309,6 @@ fun DeviceGrid(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeviceListItem(
     label: Int,

@@ -126,7 +126,6 @@ class MainViewModel(
                     }
                     Log.d("Device Count", response.data.size.toString())
 
-                    _disconnected = false
                 }
                 is Result.Error -> {
                     _error = response.exception
@@ -247,6 +246,7 @@ class MainViewModel(
             when(val response = reportRepository.getEnergyReport(datetime)) {
                 is Result.Success<Report> -> {
                     _report = response.data
+                    _disconnected = false  // set connection as active
                     Log.d("Energy Report", response.data.toString())
                 }
                 is Result.Error -> {
